@@ -79,6 +79,15 @@
         
         <div class="row">
           <div class="col-md-6 mb-3">
+            <label class="form-label">Tanggal Kunjungan</label>
+            <input type="date" name="tanggal_kunjungan" class="form-control" required>
+          </div>
+          <!-- Kolom kosong untuk menjaga tata letak tetap rapi -->
+          <div class="col-md-6 mb-3"></div>
+        </div>
+
+        <div class="row">
+          <div class="col-md-6 mb-3">
             <label class="form-label">NIK Pasien</label>
             <input type="number" name="nik" class="form-control" required placeholder="Masukkan 16 digit NIK">
           </div>
@@ -235,7 +244,7 @@
         <table class="table table-hover mb-0" id="dataTable">
           <thead>
             <tr>
-              <th>Tgl Lapor</th>
+              <th>Tgl Kunjungan</th>
               <th>Nama Pasien & Kontak</th>
               <th>Umur/JK</th>
               <th>Kelurahan & Penyakit</th>
@@ -252,7 +261,8 @@
 
   <script>
     // ================= PENGATURAN URL APP SCRIPT =================
-    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzLmtkeZjGpDDaJmkuZEQNWhEcgEeLcqyELkat6RMkTOrzs_4zZjQ8mijCyBgKZ_kyB8g/exec";
+    // GANTI URL DI BAWAH INI DENGAN URL WEB APP DEPLOYMENT TERBARU ANDA
+    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzveeu4ic9TGc9vOdhxNx7enTGtBTMyvHR5DOzQeCpLd69r4pAmNA5Lgm_yMSPSIAQsgg/exec";
     
     let adminDataCache = [];
     let donutChartObj = null;
@@ -303,6 +313,7 @@
 
       const payload = {
         action: "insert",
+        tanggal_kunjungan: this.tanggal_kunjungan.value,
         nik: this.nik.value,
         nama: this.nama.value,
         namakk: this.namakk.value,
@@ -374,12 +385,13 @@
         return;
       }
 
-      const headerBaris = ["Tanggal Lapor", "NIK", "Nama Pasien", "Nama KK", "Umur", "Jenis Kelamin", "Kelurahan", "Alamat Domisili", "Nomor HP", "Penyakit Dominan", "Kondisi Lingkungan", "Hasil Wawancara", "Penyebab", "Saran & Tindak Lanjut", "Koordinat GPS", "Status"];
+      const headerBaris = ["Tanggal Kunjungan", "NIK", "Nama Pasien", "Nama KK", "Umur", "Jenis Kelamin", "Kelurahan", "Alamat Domisili", "Nomor HP", "Penyakit Dominan", "Kondisi Lingkungan", "Hasil Wawancara", "Penyebab", "Saran & Tindak Lanjut", "Koordinat GPS", "Status"];
       
       let isiCSV = "data:text/csv;charset=utf-8," + headerBaris.join(",") + "\n";
 
       adminDataCache.forEach(row => {
-        let tgl = new Date(row.tanggal).toLocaleDateString('id-ID');
+        // Cek jika field tanggal ada isinya, format ke ID, jika tidak biarkan kosong
+        let tgl = row.tanggal ? new Date(row.tanggal).toLocaleDateString('id-ID') : '-';
         
         let barisData = [
           tgl, row.nik, row.nama, row.namakk, row.umur, row.jk, row.kelurahan, 
@@ -388,7 +400,7 @@
         ];
 
         let formatBaris = barisData.map(item => {
-          let str = String(item).replace(/"/g, '""'); 
+          let str = String(item || '').replace(/"/g, '""'); 
           return `"${str}"`; 
         }).join(",");
         
@@ -459,7 +471,7 @@
       const sortedData = [...data].reverse();
 
       sortedData.forEach(row => {
-        let tgl = new Date(row.tanggal).toLocaleDateString('id-ID');
+        let tgl = row.tanggal ? new Date(row.tanggal).toLocaleDateString('id-ID') : '-';
         let jkSingkat = row.jk === 'Laki-laki' ? 'L' : (row.jk === 'Perempuan' ? 'P' : '-');
         
         let warnaBadge = warnaPenyakit[row.penyakit] || '#6c757d'; 
@@ -485,12 +497,12 @@
     function filterTabel() {
       const keyword = document.getElementById('searchInput').value.toLowerCase();
       const hasilFilter = adminDataCache.filter(row => {
-        return row.nama.toLowerCase().includes(keyword) || 
-               row.namakk.toLowerCase().includes(keyword) ||
-               row.nik.toString().includes(keyword) || 
-               row.kelurahan.toLowerCase().includes(keyword) || 
-               row.hp.toString().includes(keyword) ||
-               row.penyakit.toLowerCase().includes(keyword); 
+        return (row.nama && row.nama.toLowerCase().includes(keyword)) || 
+               (row.namakk && row.namakk.toLowerCase().includes(keyword)) ||
+               (row.nik && row.nik.toString().includes(keyword)) || 
+               (row.kelurahan && row.kelurahan.toLowerCase().includes(keyword)) || 
+               (row.hp && row.hp.toString().includes(keyword)) ||
+               (row.penyakit && row.penyakit.toLowerCase().includes(keyword)); 
       });
       renderTabel(hasilFilter);
     }
