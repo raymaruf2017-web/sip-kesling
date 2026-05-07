@@ -82,7 +82,6 @@
             <label class="form-label">Tanggal Kunjungan</label>
             <input type="date" name="tanggal_kunjungan" class="form-control" required>
           </div>
-          <!-- Kolom kosong untuk menjaga tata letak tetap rapi -->
           <div class="col-md-6 mb-3"></div>
         </div>
 
@@ -228,16 +227,35 @@
         </div>
       </div>
       <hr>
+
+      <!-- Pencarian dan Filter Bulan -->
+      <div class="row mb-3">
+        <div class="col-md-4 mb-2">
+          <select id="filterBulan" class="form-select border-success" onchange="applyFilters()">
+            <option value="all">📅 Semua Bulan</option>
+            <option value="0">Januari</option>
+            <option value="1">Februari</option>
+            <option value="2">Maret</option>
+            <option value="3">April</option>
+            <option value="4">Mei</option>
+            <option value="5">Juni</option>
+            <option value="6">Juli</option>
+            <option value="7">Agustus</option>
+            <option value="8">September</option>
+            <option value="9">Oktober</option>
+            <option value="10">November</option>
+            <option value="11">Desember</option>
+          </select>
+        </div>
+        <div class="col-md-8 mb-2">
+          <input type="text" id="searchInput" class="form-control border-success" placeholder="🔍 Cari Nama, NIK, KK, Kelurahan atau Penyakit..." onkeyup="applyFilters()">
+        </div>
+      </div>
       
       <!-- Container Grafik -->
       <div class="dashboard-charts">
         <div class="chart-box"><canvas id="barChart"></canvas></div>
         <div class="chart-box"><canvas id="donutChart"></canvas></div>
-      </div>
-
-      <!-- Pencarian -->
-      <div class="mb-3">
-        <input type="text" id="searchInput" class="form-control border-success" placeholder="🔍 Cari Nama, NIK, KK, No HP, Kelurahan atau Penyakit..." onkeyup="filterTabel()">
       </div>
       
       <!-- Tabel Data -->
@@ -262,7 +280,7 @@
 
   <script>
     // ================= PENGATURAN URL APP SCRIPT =================
-    // GANTI URL DI BAWAH INI DENGAN URL WEB APP DEPLOYMENT TERBARU ANDA
+    // PASTIKAN URL DI BAWAH INI ADALAH URL DEPLOYMENT ANDA YANG TERBARU
     const SCRIPT_URL = "https://script.google.com/macros/s/AKfycby2zGdRLJzeLmFQdwIieR9UD97GWuTzUJCPAoRwnJ7_p3WwZie4uD3NOKIkzfldIqMbRA/exec";
     
     let adminDataCache = [];
@@ -365,7 +383,12 @@
           status.innerText = "";
           document.getElementById('loginView').style.display = 'none';
           document.getElementById('dashboardView').style.display = 'block';
-          renderDashboard(); 
+          
+          // Reset filter saat baru login
+          document.getElementById('filterBulan').value = 'all';
+          document.getElementById('searchInput').value = '';
+          
+          applyFilters(); // Terapkan filter default (Semua bulan)
         } else {
           status.innerText = "❌ Password Salah!";
         }
@@ -391,9 +414,7 @@
       let isiCSV = "data:text/csv;charset=utf-8," + headerBaris.join(",") + "\n";
 
       adminDataCache.forEach(row => {
-        // Cek jika field tanggal ada isinya, format ke ID, jika tidak biarkan kosong
         let tgl = row.tanggal ? new Date(row.tanggal).toLocaleDateString('id-ID') : '-';
-        
         let barisData = [
           tgl, row.nik, row.nama, row.namakk, row.umur, row.jk, row.kelurahan, 
           row.alamat, row.hp, row.penyakit, row.lingkungan, row.wawancara, 
@@ -417,20 +438,57 @@
       document.body.removeChild(link);
     }
 
-    function renderDashboard() {
-      renderTabel(adminDataCache);
+    // ===============================================
+    // FUNGSI FILTER UTAMA (Bulan & Pencarian Teks)
+    // ===============================================
+    function applyFilters() {
+      const bulanDipilih = document.getElementById('filterBulan').value;
+      const keyword = document.getElementById('searchInput').value.toLowerCase();
+      
+      let filteredData = adminDataCache;
 
+      // 1. Filter Berdasarkan Bulan
+      if (bulanDipilih !== 'all') {
+        filteredData = filteredData.filter(row => {
+          if (!row.tanggal) return false; // Abaikan jika tidak ada tanggal
+          const dateObj = new Date(row.tanggal);
+          return dateObj.getMonth().toString() === bulanDipilih; // Cocokkan index bulan (0 = Jan, 11 = Des)
+        });
+      }
+
+      // 2. Filter Berdasarkan Teks Pencarian
+      if (keyword !== '') {
+        filteredData = filteredData.filter(row => {
+          return (row.nama && row.nama.toLowerCase().includes(keyword)) || 
+                 (row.namakk && row.namakk.toLowerCase().includes(keyword)) ||
+                 (row.nik && row.nik.toString().includes(keyword)) || 
+                 (row.kelurahan && row.kelurahan.toLowerCase().includes(keyword)) || 
+                 (row.hp && row.hp.toString().includes(keyword)) ||
+                 (row.penyakit && row.penyakit.toLowerCase().includes(keyword)); 
+        });
+      }
+
+      // Render ulang grafik dan tabel menggunakan data yang sudah disaring
+      renderCharts(filteredData);
+      renderTabel(filteredData);
+    }
+
+    // ===============================================
+    // FUNGSI RENDER GRAFIK
+    // ===============================================
+    function renderCharts(data) {
       const semuaPenyakit = ['DBD', 'Diare', 'Cacingan', 'Campak', 'Pneumonia', 'Disentri', 'Malaria', 'Scabies'];
-      const kelurahanSet = new Set(adminDataCache.map(d => d.kelurahan));
+      const kelurahanSet = new Set(data.map(d => d.kelurahan));
       const labelKelurahan = Array.from(kelurahanSet).sort(); 
 
       const datasetBar = semuaPenyakit.map(penyakit => {
         const dataPerKelurahan = labelKelurahan.map(kel => {
-          return adminDataCache.filter(d => d.kelurahan === kel && d.penyakit === penyakit).length;
+          return data.filter(d => d.kelurahan === kel && d.penyakit === penyakit).length;
         });
         return { label: penyakit, data: dataPerKelurahan, backgroundColor: warnaPenyakit[penyakit] };
       });
 
+      // Update / Buat ulang Bar Chart
       if(barChartObj !== null) barChartObj.destroy();
       const ctxBar = document.getElementById('barChart').getContext('2d');
       barChartObj = new Chart(ctxBar, {
@@ -438,13 +496,14 @@
         data: { labels: labelKelurahan, datasets: datasetBar },
         options: {
           responsive: true, maintainAspectRatio: false,
-          plugins: { legend: { position: 'bottom' }, title: { display: true, text: 'Kasus per Kelurahan' } },
+          plugins: { legend: { position: 'bottom' }, title: { display: true, text: 'Kasus per Kelurahan (Filtered)' } },
           scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true, ticks: { stepSize: 1 } } }
         }
       });
 
+      // Update / Buat ulang Donut Chart
       const hitungDonat = {};
-      adminDataCache.forEach(row => { hitungDonat[row.penyakit] = (hitungDonat[row.penyakit] || 0) + 1; });
+      data.forEach(row => { hitungDonat[row.penyakit] = (hitungDonat[row.penyakit] || 0) + 1; });
       const labelDonat = Object.keys(hitungDonat);
       const dataDonat = labelDonat.map(p => hitungDonat[p]);
       const warnaDonat = labelDonat.map(p => warnaPenyakit[p]);
@@ -456,16 +515,19 @@
         data: { labels: labelDonat, datasets: [{ data: dataDonat, backgroundColor: warnaDonat }] },
         options: {
           responsive: true, maintainAspectRatio: false,
-          plugins: { legend: { position: 'bottom' }, title: { display: true, text: 'Total Kasus' } }
+          plugins: { legend: { position: 'bottom' }, title: { display: true, text: 'Total Kasus (Filtered)' } }
         }
       });
     }
 
+    // ===============================================
+    // FUNGSI RENDER TABEL
+    // ===============================================
     function renderTabel(data) {
       const tbody = document.getElementById('tableBody');
       tbody.innerHTML = "";
       if(data.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="4" class="text-center">Belum ada data</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="4" class="text-center text-danger fw-bold">Data pada bulan/pencarian ini tidak ditemukan</td></tr>';
         return;
       }
       
@@ -493,19 +555,6 @@
         `;
         tbody.appendChild(tr);
       });
-    }
-
-    function filterTabel() {
-      const keyword = document.getElementById('searchInput').value.toLowerCase();
-      const hasilFilter = adminDataCache.filter(row => {
-        return (row.nama && row.nama.toLowerCase().includes(keyword)) || 
-               (row.namakk && row.namakk.toLowerCase().includes(keyword)) ||
-               (row.nik && row.nik.toString().includes(keyword)) || 
-               (row.kelurahan && row.kelurahan.toLowerCase().includes(keyword)) || 
-               (row.hp && row.hp.toString().includes(keyword)) ||
-               (row.penyakit && row.penyakit.toLowerCase().includes(keyword)); 
-      });
-      renderTabel(hasilFilter);
     }
   </script>
 </body>
